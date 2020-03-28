@@ -1,0 +1,5 @@
+C:\Users\skuld\source\repos\StalkMarket\StalkMarket\bin\Debug\StalkMarket.dll
+C:\Users\skuld\source\repos\StalkMarket\StalkMarket\bin\Debug\StalkMarket.pdb
+C:\Users\skuld\source\repos\StalkMarket\StalkMarket\obj\Debug\StalkMarket.csprojAssemblyReference.cache
+C:\Users\skuld\source\repos\StalkMarket\StalkMarket\obj\Debug\StalkMarket.dll
+C:\Users\skuld\source\repos\StalkMarket\StalkMarket\obj\Debug\StalkMarket.pdb

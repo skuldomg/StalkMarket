@@ -1,0 +1,10 @@
+﻿{
+  "Name": "Stalk Market",
+  "Author": "skuldomg",
+  "Version": "0.0.1",
+  "Description": "Adds a Stalk Market",
+  "UniqueID": "skuldomg.stalkmarket",
+  "EntryDll": "StalkMarket.dll",
+  "MinimumApiVersion": "3.2",
+  "UpdateKeys": []
+}
