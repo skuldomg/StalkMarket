@@ -25,7 +25,7 @@ namespace StalkMarket
             helper.Events.GameLoop.DayStarted += this.DayStarted;
             helper.Events.GameLoop.TimeChanged += this.TimeChanged;
             helper.Events.GameLoop.Saved += this.Saved;
-            model = this.Helper.Data.ReadJsonFile<ModData>("dat/{Constants.SaveFolderName}.json") ?? new ModData();
+            model = this.Helper.Data.ReadJsonFile<ModData>($"dat/{Constants.SaveFolderName}.json") ?? new ModData();
         }
 
         // Generates turnip prices for a whole week
@@ -261,8 +261,9 @@ namespace StalkMarket
                         price = model.weekPrices[11];
                     break;
 
+                // Sunday
                 default:
-                    price = 0;
+                    price = random.Next(90, 110)/2;
                     break;
             }
 
@@ -280,7 +281,26 @@ namespace StalkMarket
             }
         }
 
-        // Check if there's a weekly pattern. If this is the first time someone loads this mod, there's none - generate it
+        private void ActivateMarket()
+        {
+            // Add the Stalk Market to the Sewer Map
+            GameLocation sewer = Game1.getLocationFromName("Farm");
+            // 13, 10
+            int tileX = 63;
+            int tileY = 14;            
+
+            // add Shop property            
+            if (Game1.dayOfMonth % 7 == 0)
+                sewer.setTileProperty(tileX, tileY, "Buildings", "Shop", "Stalk Market");
+            else
+                sewer.setTileProperty(tileX, tileY, "Buildings", "Shop", "Stalk Market 2");
+
+            sewer.setTileProperty(tileX, tileY, "Buildings", "Action", "");
+
+            // TODO: Instead of stockless shop, add some dialog for non-Sundays
+        }
+        
+        // Check if there's a weekly pattern. If this is the first time someone loads this mod, there's none - generate it and set prices
         private void SaveLoaded(object sender, EventArgs e)
         {            
             if (model.pattern == "none")
@@ -290,19 +310,17 @@ namespace StalkMarket
 
                 // DEBUG
                 for (int i = 0; i <= 11; i++)
-                    this.Monitor.Log("Price: " + model.weekPrices[i], LogLevel.Debug);
-            }
-            
-            SetNewTurnipPrice();
+                    this.Monitor.Log("Price: " + model.weekPrices[i], LogLevel.Debug);                
+            }           
         }
 
         // On Mondays, generate a new weekly pattern
         // Set prices for the morning
         private void DayStarted(object sender, EventArgs e)
         {
-            if(model.pattern == "none" || Game1.dayOfMonth == 1 || Game1.dayOfMonth == 8 || Game1.dayOfMonth == 15 || Game1.dayOfMonth == 22)
+            if(Game1.dayOfMonth == 1 || Game1.dayOfMonth == 8 || Game1.dayOfMonth == 15 || Game1.dayOfMonth == 22)
             {
-                this.Monitor.Log("No pattern set or it's a Monday. Setting...", LogLevel.Debug);
+                this.Monitor.Log("It's a Monday. Setting...", LogLevel.Debug);
                 GenerateWeeklyPrices();
 
                 // DEBUG
@@ -311,6 +329,9 @@ namespace StalkMarket
             }
 
             SetNewTurnipPrice();
+            ActivateMarket();
+
+            // TODO: Do this on day ending so that new prices are set correctly in the morning?
         }
 
         // If it's noon, update price
