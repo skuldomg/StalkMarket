@@ -12,6 +12,7 @@ namespace StalkMarket
     public class ModEntry : Mod
     {
         Random random = new Random();
+        ModData model = null;
 
         /*********
         ** Public methods
@@ -21,64 +22,61 @@ namespace StalkMarket
         public override void Entry(IModHelper helper)
         {
             helper.Events.GameLoop.SaveLoaded += this.SaveLoaded;
+            helper.Events.GameLoop.DayStarted += this.DayStarted;
+            helper.Events.GameLoop.TimeChanged += this.TimeChanged;
+            helper.Events.GameLoop.Saved += this.Saved;
+            model = this.Helper.Data.ReadJsonFile<ModData>("dat/{Constants.SaveFolderName}.json") ?? new ModData();
         }
-        
 
-        private void SaveLoaded(object sender, EventArgs e)
+        // Generates turnip prices for a whole week
+        private void GenerateWeeklyPrices()
         {
-            // Check if we have a week pattern set
-            var model = this.Helper.Data.ReadJsonFile<ModData>("dat/{Constants.SaveFolderName}.json") ?? new ModData();
+            // Choose overall pattern
+            int rnd = random.Next(0, 3);
 
-            // If not, set one at random
-            if(model.pattern == "none")
+            switch (rnd)
             {
-                this.Monitor.Log("No pattern set. Setting...", LogLevel.Debug);
-                int rnd = random.Next(0, 3);
+                case 0:
+                    model.pattern = "rnd";
+                    break;
 
-                switch(rnd)
-                {
-                    case 0:
-                        model.pattern = "rnd";
-                        break;
+                case 1:
+                    model.pattern = "dec";
+                    break;
 
-                    case 1:
-                        model.pattern = "dec";
-                        break;
+                case 2:
+                    model.pattern = "lrg";
+                    break;
 
-                    case 2:
-                        model.pattern = "lrg";
-                        break;
+                case 3:
+                    model.pattern = "sml";
+                    break;
 
-                    case 3:
-                        model.pattern = "sml";
-                        break;
-
-                    default:
-                        model.pattern = "none";
-                        break;
-                }
+                default:
+                    model.pattern = "none";
+                    break;
             }
 
-            this.Monitor.Log("Pattern set to "+model.pattern, LogLevel.Debug);
-            
+
+            this.Monitor.Log("Pattern set to " + model.pattern, LogLevel.Debug);
+
             // Generate prices according to pattern
-            switch(model.pattern)
+            switch (model.pattern)
             {
                 case "rnd":
-                    // Sequence of 3 consecutive falling prices below 80
-                    int rnd = random.Next(50, 80);
-                    model.weekPrices[0] = rnd;
+                    // Sequence of 3 consecutive falling prices below 80                        
+                    model.weekPrices[0] = random.Next(50, 80);
 
                     // Just ignore the probability that this may be 2x50
-                    for (int i = 1; i <= 2; i++)                                            
-                        model.weekPrices[i] = random.Next(50, model.weekPrices[i - 1]);                    
+                    for (int i = 1; i <= 2; i++)
+                        model.weekPrices[i] = random.Next(50, model.weekPrices[i - 1]);
 
                     // Small spike to 110-600
                     model.weekPrices[3] = random.Next(110, 600);
 
                     // next two drop by 4-12+ bells
-                    for (int i=4; i<=5; i++)                    
-                        model.weekPrices[i] = model.weekPrices[i-1] - (random.Next(4, 20));
+                    for (int i = 4; i <= 5; i++)
+                        model.weekPrices[i] = model.weekPrices[i - 1] - (random.Next(4, 20));
 
                     // otherwise random prices from 40-600
                     for (int i = 6; i <= 11; i++)
@@ -100,7 +98,7 @@ namespace StalkMarket
                     int lowPerc = 10;
                     int lowestPerc = 5;
 
-                    if(model.pattern == "sml")
+                    if (model.pattern == "sml")
                     {
                         highestPerc = 20;
                         highPerc = 10;
@@ -119,7 +117,7 @@ namespace StalkMarket
                     model.weekPrices[0] = random.Next(model.weekPrices[high] - (model.weekPrices[high] / 100) * highestPerc, model.weekPrices[high] - (model.weekPrices[high] / 100) * highPerc);
 
                     // increases up to high
-                    for(int i=1; i<high; i++)
+                    for (int i = 1; i < high; i++)
                     {
                         int curPrice = model.weekPrices[i];
                         int lastPrice = model.weekPrices[i - 1];
@@ -128,15 +126,41 @@ namespace StalkMarket
                         // If high point is near, do big increases - min = lastPrice + 20%, max = highPrice - 10%
                         // If not, increase 5-10%
                         if (i + 2 == high || i + 1 == high)
-                            model.weekPrices[i] = random.Next(lastPrice + ((highPrice - lastPrice) / 100) * highPerc, highPrice - (highPrice / 100) * lowPerc);
+                        {
+                            int a = lastPrice + (lastPrice / 100) * highPerc;
+                            int b = highPrice - (highPrice / 100) * lowPerc;
+                            int tmp = 0;
+
+                            // if min > max, swap
+                            if (a > b)
+                            {
+                                tmp = a;
+                                a = b;
+                                b = tmp;
+                            }
+
+                            model.weekPrices[i] = random.Next(a, b);
+                        }
                         else
-                            model.weekPrices[i] = random.Next(lastPrice + ((highPrice - lastPrice) / 100) * lowPerc, highPrice - (highPrice / 100) * lowestPerc);                        
+                        {
+                            int a = lastPrice + (lastPrice / 100) * lowPerc;
+                            int b = highPrice - (highPrice / 100) * lowestPerc;
+                            int tmp = 0;
+
+                            if(a > b)
+                            {
+                                tmp = a;
+                                a = b;
+                                b = tmp;
+                            }
+
+                            model.weekPrices[i] = random.Next(a, b);
+                        }
                     }
 
                     // decreases from high to end, 5-10% each step, first step 10-20%
                     for (int i = (high + 1); i <= 11; i++)
-                    {
-                        // 504 - (504 / 100) * 20 = 403,2
+                    {                        
                         if (i == (high + 1))
                             model.weekPrices[i] = random.Next(model.weekPrices[high] - (model.weekPrices[high] / 100) * highPerc, model.weekPrices[high] - (model.weekPrices[high] / 100) * lowPerc);
                         else
@@ -144,13 +168,11 @@ namespace StalkMarket
                     }
                     break;
             }
-
-            for(int i=0; i<=11; i++)            
-                this.Monitor.Log("Price: "+model.weekPrices[i], LogLevel.Debug);
-            
-            // TODO: Set prices at day start and midday, save prices to file on exit
-
-            // Set the new turnip price for the day
+        }
+        
+        // Updates the turnip price
+        private void SetNewTurnipPrice()
+        {            
             // Find the turnip key
             int theKey = -1;
             foreach (System.Collections.Generic.KeyValuePair<int, string> kvp in Game1.objectInformation)
@@ -162,14 +184,93 @@ namespace StalkMarket
                 }
 
             }
-            
-            // Randomize the turnip price
+
+            // Set the new turnip price
             Game1.objectInformation.Remove(theKey);
 
-            int price = random.Next(25, 300);
+            // TODO: Check which day and time we are and set the turnip price accordingly
+            int dom = Game1.dayOfMonth;            
+            int tod = Game1.timeOfDay;
+            int price = 0;
+
+            switch(dom)
+            {
+                // Monday
+                case 1:
+                case 8:
+                case 15:
+                case 22:
+                    if (tod < 1200)
+                        price = model.weekPrices[0];
+                    else
+                        price = model.weekPrices[1];
+                    break;
+
+                // Tuesday
+                case 2:
+                case 9:
+                case 16:
+                case 23:
+                    if (tod < 1200)
+                        price = model.weekPrices[2];
+                    else
+                        price = model.weekPrices[3];
+                    break;
+
+                // Wednesday
+                case 3:
+                case 10:
+                case 17:
+                case 24:
+                    if (tod < 1200)
+                        price = model.weekPrices[4];
+                    else
+                        price = model.weekPrices[5];
+                    break;
+
+                // Thursday
+                case 4:
+                case 11:
+                case 18:
+                case 25:
+                    if (tod < 1200)
+                        price = model.weekPrices[6];
+                    else
+                        price = model.weekPrices[7];
+                    break;
+
+                // Friday
+                case 5:
+                case 12:
+                case 19:
+                case 26:
+                    if (tod < 1200)
+                        price = model.weekPrices[8];
+                    else
+                        price = model.weekPrices[9];
+                    break;
+
+                // Saturday
+                case 6:
+                case 13:
+                case 20:
+                case 27:
+                    if (tod < 1200)
+                        price = model.weekPrices[10];
+                    else
+                        price = model.weekPrices[11];
+                    break;
+
+                default:
+                    price = 0;
+                    break;
+            }
+
+            this.Monitor.Log("It's the "+dom.ToString()+". day of the month and "+tod.ToString()+" hours.", LogLevel.Debug);
+
             String strPrice = price.ToString();
 
-            Game1.objectInformation.Add(theKey, "Turnip/"+strPrice+"/-300/Basic -79/Turnip/Looks like a regular turnip.");
+            Game1.objectInformation.Add(theKey, "Turnip/" + strPrice + "/-300/Basic -79/Turnip/Looks like a regular turnip.");
 
             foreach (System.Collections.Generic.KeyValuePair<int, string> kvp in Game1.objectInformation)
             {
@@ -177,6 +278,53 @@ namespace StalkMarket
                     this.Monitor.Log(kvp.ToString(), LogLevel.Debug);
 
             }
-        }        
+        }
+
+        // Check if there's a weekly pattern. If this is the first time someone loads this mod, there's none - generate it
+        private void SaveLoaded(object sender, EventArgs e)
+        {            
+            if (model.pattern == "none")
+            {
+                this.Monitor.Log("No pattern set. Setting...", LogLevel.Debug);
+                GenerateWeeklyPrices();            
+
+                // DEBUG
+                for (int i = 0; i <= 11; i++)
+                    this.Monitor.Log("Price: " + model.weekPrices[i], LogLevel.Debug);
+            }
+            
+            SetNewTurnipPrice();
+        }
+
+        // On Mondays, generate a new weekly pattern
+        // Set prices for the morning
+        private void DayStarted(object sender, EventArgs e)
+        {
+            if(model.pattern == "none" || Game1.dayOfMonth == 1 || Game1.dayOfMonth == 8 || Game1.dayOfMonth == 15 || Game1.dayOfMonth == 22)
+            {
+                this.Monitor.Log("No pattern set or it's a Monday. Setting...", LogLevel.Debug);
+                GenerateWeeklyPrices();
+
+                // DEBUG
+                for (int i = 0; i <= 11; i++)
+                    this.Monitor.Log("Price: " + model.weekPrices[i], LogLevel.Debug);                
+            }
+
+            SetNewTurnipPrice();
+        }
+
+        // If it's noon, update price
+        private void TimeChanged(object sender, EventArgs e)
+        {
+            if (Game1.timeOfDay == 1200)
+                SetNewTurnipPrice();
+        }
+
+        // Save prices and price pattern to file on exit
+        private void Saved(object sender, EventArgs e)
+        {
+            this.Helper.Data.WriteJsonFile($"dat/{Constants.SaveFolderName}.json", model);
+            this.Monitor.Log("Saved stalk data.", LogLevel.Debug);
+        }
     }
 }
